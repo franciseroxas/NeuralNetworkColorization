@@ -1,6 +1,76 @@
 import torch
 import torch.nn as nn
 
+class UNetConvBlock(nn.Module):
+    def __init__(self):
+        super(UNetConvBlock, self).__init__()
+        #3x3 block 
+        #3x3 
+        self.block1 = nn.Sequential(nn.ConstantPad2d(1, -1),
+                                    nn.Conv2d(in_channels = 256, out_channels = 64, kernel_size = (3,3)),
+                                    nn.BatchNorm2d(num_features = 64),
+                                    nn.ReLU(inplace = True),                            
+                                    nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = (3,3), padding = (1,1)),
+                                    nn.BatchNorm2d(num_features = 64))
+        
+        #3x3 
+        #3x5
+        self.block2 = nn.Sequential(nn.ConstantPad2d(1, -1),
+                                    nn.Conv2d(in_channels = 256, out_channels = 64, kernel_size = (3,3)),
+                                    nn.BatchNorm2d(num_features = 64),
+                                    nn.ReLU(inplace = True), 
+                                    nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = (5,5), padding = (2,2)),
+                                    nn.BatchNorm2d(num_features = 64))
+        
+        #5x5 
+        #3x3
+        self.block3 = nn.Sequential(nn.ConstantPad2d(2, -1),
+                                    nn.Conv2d(in_channels = 256, out_channels = 64, kernel_size = (5,5)),
+                                    nn.BatchNorm2d(num_features = 64),
+                                    nn.ReLU(inplace = True), 
+                                    nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = (3,3), padding = (1,1)),
+                                    nn.BatchNorm2d(num_features = 64))
+        
+        #5x5
+        #5x5
+        self.block4 = nn.Sequential(nn.ConstantPad2d(2, -1),
+                                    nn.Conv2d(in_channels = 256, out_channels = 64, kernel_size = (5,5)),
+                                    nn.BatchNorm2d(num_features = 64),
+                                    nn.ReLU(inplace = True), 
+                                    nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = (5,5), padding = (2,2)),
+                                    nn.BatchNorm2d(num_features = 64))
+                                    
+        self.convolutionalization1 = nn.Sequential(nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (1,1)),
+                                                   nn.BatchNorm2d(num_features = 256),
+                                                   nn.ReLU(inplace = True),
+                                                   nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (1,1)),
+                                                   nn.BatchNorm2d(num_features = 256),
+                                                   nn.ReLU(inplace = True),
+                                                   nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (1,1)))
+                                                        
+        self.convolutionalization2 = nn.Sequential(nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (1,1)),
+                                                   nn.BatchNorm2d(num_features = 256),
+                                                   nn.ReLU(inplace = True),
+                                                   nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (1,1)),
+                                                   nn.BatchNorm2d(num_features = 256),
+                                                   nn.ReLU(inplace = True),
+                                                   nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (1,1)))
+        
+    def forward(self, input):
+        block1 = self.block1(input)
+        block2 = self.block2(input)
+        block3 = self.block3(input)
+        block4 = self.block4(input)
+        
+        output = torch.zeros(block4.shape[0], block4.shape[1]*4, block4.shape[2], block4.shape[3], device = block4.device)
+        output[:, 0::4, :, :] = block1
+        output[:, 1::4, :, :] = block2
+        output[:, 2::4, :, :] = block3
+        output[:, 3::4, :, :] = block4
+        
+        output = self.convolutionalization1(output) + self.convolutionalization2(input)
+        return output
+
 #Change to a better upscaler after getting this one to work
 class UNetColorizer(nn.Module):
 
@@ -9,108 +79,103 @@ class UNetColorizer(nn.Module):
         #Self feature transform for edges
         self.edgeTransform1 = nn.Sequential(nn.ConstantPad2d(1, -1),
                                            nn.Conv2d(in_channels = 1, out_channels = 64, kernel_size = (3,3)),
-                                           nn.ReLU(), 
                                            nn.BatchNorm2d(num_features = 64),
+                                           nn.ReLU(inplace = True), 
                                            nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = (3,3), padding = (1,1)),
-                                           nn.ReLU(), 
                                            nn.BatchNorm2d(num_features = 64))
         
         self.edgeTransform2 = nn.Sequential(nn.ConstantPad2d(2, -1),
                                            nn.Conv2d(in_channels = 1, out_channels = 64, kernel_size = (3,3), dilation = (2,2)),
-                                           nn.ReLU(), 
                                            nn.BatchNorm2d(num_features = 64),
+                                           nn.ReLU(inplace = True),
                                            nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = (3,3), padding = (1,1)),
-                                           nn.ReLU(), 
                                            nn.BatchNorm2d(num_features = 64))
+                                           
+        self.edgeTransform3 = nn.Sequential(nn.ConstantPad2d(1, -1),
+                                           nn.Conv2d(in_channels = 1, out_channels = 64, kernel_size = (3,3)),
+                                           nn.BatchNorm2d(num_features = 64),
+                                           nn.ReLU(inplace = True), 
+                                           nn.ConstantPad2d(2, 0),
+                                           nn.Conv2d(in_channels = 1, out_channels = 64, kernel_size = (3,3), dilation = (2,2)),
+                                           nn.BatchNorm2d(num_features = 64))
+                                           
+        self.edgeTransform4 = nn.Sequential(nn.ConstantPad2d(2, -1),
+                                           nn.Conv2d(in_channels = 1, out_channels = 64, kernel_size = (3,3), dilation = (2,2)),
+                                           nn.BatchNorm2d(num_features = 64),
+                                           nn.ReLU(inplace = True),
+                                           nn.ConstantPad2d(2, 0),
+                                           nn.Conv2d(in_channels = 1, out_channels = 64, kernel_size = (3,3), dilation = (2,2)),
+                                           nn.BatchNorm2d(num_features = 64))
+                                           
+        
         
         #Encoder
-        self.encode1 = nn.Sequential(nn.Conv2d(in_channels = 129, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
+        self.encode1 = nn.Sequential(nn.ConstantPad2d(1, -1),
+                                     nn.Conv2d(in_channels = 129, out_channels = 256, kernel_size = (3,3)), 
                                      nn.BatchNorm2d(num_features = 256),
+                                     nn.ReLU(inplace = True), 
                                      nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
                                      nn.BatchNorm2d(num_features = 256),
+                                     nn.ReLU(inplace = True),
                                      nn.Conv2d(in_channels = 256, out_channels = 64, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
                                      nn.BatchNorm2d(num_features = 64))
+
                                              
         self.encode2 = nn.Sequential(nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
                                      nn.BatchNorm2d(num_features = 256),
-                                     nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
-                                     nn.BatchNorm2d(num_features = 256),
+                                     nn.ReLU(inplace = True), 
+                                     UNetConvBlock(),
+                                     UNetConvBlock(),
                                      nn.Conv2d(in_channels = 256, out_channels = 64, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
                                      nn.BatchNorm2d(num_features = 64))
                                                                           
         self.encode3 = nn.Sequential(nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
                                      nn.BatchNorm2d(num_features = 256),
-                                     nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
-                                     nn.BatchNorm2d(num_features = 256),
-                                     nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
-                                     nn.BatchNorm2d(num_features = 256))
+                                     nn.ReLU(inplace = True), 
+                                     UNetConvBlock(),
+                                     UNetConvBlock())
                                              
         #BottleNeck
         self.bottleNeck1 = nn.Sequential(nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
                                      nn.BatchNorm2d(num_features = 256),
-                                     nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
-                                     nn.BatchNorm2d(num_features = 256),
-                                     nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
-                                     nn.BatchNorm2d(num_features = 256))
+                                     nn.ReLU(inplace = True), 
+                                     UNetConvBlock(),
+                                     UNetConvBlock())
                                      
         self.bottleNeck2 = nn.Sequential(nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
                                      nn.BatchNorm2d(num_features = 256),
-                                     nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
-                                     nn.BatchNorm2d(num_features = 256),
-                                     nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
-                                     nn.BatchNorm2d(num_features = 256))
+                                     nn.ReLU(inplace = True), 
+                                     UNetConvBlock(),
+                                     UNetConvBlock())
         
         #Decoder
-        self.decode1 = nn.Sequential(nn.ConvTranspose2d(in_channels = 512, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
+        self.decode1 = nn.Sequential(nn.Conv2d(in_channels = 512, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
                                      nn.BatchNorm2d(num_features = 256),
-                                     nn.ConvTranspose2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
-                                     nn.BatchNorm2d(num_features = 256),
-                                     nn.ConvTranspose2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
-                                     nn.BatchNorm2d(num_features = 256))
+                                     nn.ReLU(inplace = True), 
+                                     UNetConvBlock(),
+                                     UNetConvBlock())
                                      
-        self.decode2 = nn.Sequential(nn.ConvTranspose2d(in_channels = 128, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
+        self.decode2 = nn.Sequential(nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
                                      nn.BatchNorm2d(num_features = 256),
-                                     nn.ConvTranspose2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
-                                     nn.BatchNorm2d(num_features = 256),
-                                     nn.ConvTranspose2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
-                                     nn.BatchNorm2d(num_features = 256))
+                                     nn.ReLU(inplace = True), 
+                                     UNetConvBlock(),
+                                     UNetConvBlock())
                                      
-        self.decode3 = nn.Sequential(nn.ConvTranspose2d(in_channels = 128, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
+        self.decode3 = nn.Sequential(nn.ConstantPad2d(1, -1),
+                                     nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = (3,3)), 
                                      nn.BatchNorm2d(num_features = 256),
-                                     nn.ConvTranspose2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
+                                     nn.ReLU(inplace = True), 
+                                     nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
                                      nn.BatchNorm2d(num_features = 256),
-                                     nn.ConvTranspose2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
-                                     nn.ReLU(), 
+                                     nn.ReLU(inplace = True),
+                                     nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (3,3), padding = (1,1)), 
                                      nn.BatchNorm2d(num_features = 256))
                                                                           
         self.convolutionalizationLayers = nn.Sequential(nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (1,1)),
-                                                        nn.ReLU(), 
+                                                        nn.ReLU(inplace = True), 
                                                         nn.BatchNorm2d(num_features = 256),
                                                         nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = (1,1)),
-                                                        nn.ReLU(), 
+                                                        nn.ReLU(inplace = True), 
                                                         nn.BatchNorm2d(num_features = 256),
                                                         nn.Conv2d(in_channels = 256, out_channels = 3, kernel_size = (1,1)))
                                                         
