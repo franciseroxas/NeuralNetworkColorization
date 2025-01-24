@@ -18,8 +18,8 @@ class BW2ClrImageDataset(Dataset):
         clr_img_path = self.clr_img_dir + os.listdir(self.clr_img_dir)[idx]
         
         #Load in BGR 
-        bwImage = torch.Tensor(cv2.imread(bw_img_path, cv2.IMREAD_GRAYSCALE)) / 255
-        clrImage = torch.Tensor(cv2.imread(clr_img_path)) / 255
+        bwImage = (torch.Tensor(cv2.imread(bw_img_path, cv2.IMREAD_GRAYSCALE)) - 128) / 128
+        clrImage = (torch.Tensor(cv2.imread(clr_img_path)) - 128) / 128
         clrImage = clrImage.unsqueeze(0)
         clrImage = torch.transpose(clrImage, 0, 3)
 

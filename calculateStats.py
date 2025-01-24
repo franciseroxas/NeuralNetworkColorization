@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import os
 import torch
+from train import train
 #Want to count how many red, blue, green and permutations of these colors are in the dataset. Want to keep an equal number of each of these numbers may need to impute or oversample from pictures that contain these colors
 
 #255, 0, 0 Blue
@@ -71,15 +72,18 @@ blueGreenList = colorDict.get('BlueGreen')
 blueRedList = colorDict.get('BlueRed')
 greenRedList = colorDict.get('GreenRed')
 
-equalNumberPerSet = np.inf
-for key in (colorDict.keys()):
-     equalNumberPerSet = min(len(colorDict.get(key)), equalNumberPerSet)
 
-equalDataSetList = blueList[0:equalNumberPerSet] + greenList[0:equalNumberPerSet] + redList[0:equalNumberPerSet] + blueGreenList[0:equalNumberPerSet] + blueRedList[0:equalNumberPerSet] + greenRedList[0:equalNumberPerSet]
+equalDataSetList = []
+
+equalDataSetList = equalDataSetList + (blueGreenList[0:1000])
+equalDataSetList = equalDataSetList + (blueRedList[0:1000])
+equalDataSetList = equalDataSetList + (greenRedList[0:1000])
 print(len(equalDataSetList))
 
 for i in range(len(equalDataSetList)):
     print(equalDataSetList[i], i)
     img = cv2.imread('dataset/' + equalDataSetList[i])
-    cv2.imwrite('dataset_equal/' + equalDataSetList[i], img)
-    cv2.imwrite('dataset_equal_bw/' + equalDataSetList[i].replace('_clr.png', '_bw.png'), cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
+    cv2.imwrite('dataset_equal/' + str(i) + "_clr.png", img)
+    cv2.imwrite('dataset_equal_bw/'+ str(i) + "_bw.png", cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
+
+train()

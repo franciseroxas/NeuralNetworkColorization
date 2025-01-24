@@ -27,14 +27,14 @@ def train():
         valDataset = datasetsDict['valDataset']
         del datasetsDict
     else:
-        myDataset = BW2ClrImageDataset(bw_img_dir = 'dataset_bw/', clr_img_dir = 'dataset/')
+        myDataset = BW2ClrImageDataset(bw_img_dir = 'dataset_equal_bw/', clr_img_dir = 'dataset_equal/')
         trainDataset, valDataset = random_split(myDataset, [0.8, 0.2])
         torch.save({'trainDataset': trainDataset,
                     'valDataset': valDataset}, "./datasets.pt")
 
-    batch_size = 4
+    batch_size = 1
     trainDataloader = DataLoader(trainDataset, batch_size=batch_size, shuffle=True, num_workers=8)
-
+ 
     model = UNetColorizer()
     if torch.cuda.is_available():
         model.cuda()
@@ -45,12 +45,11 @@ def train():
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learningRate, betas=(0.9, 0.999), eps=1e-08)
     lossOverTime = []
-
+    
     for epoch in range(num_epochs):
         currentLoss = 0
+        startOfBatch = time.time()
         for batch_ndx, data in enumerate(trainDataloader):
-            startOfBatch = time.time()
-            
             bwImgsTensor, clrImgsTensor = data
             bwImgsTensor, clrImgsTensor = bwImgsTensor.to(device), clrImgsTensor.to(device)
             
@@ -58,17 +57,18 @@ def train():
             loss = criterion(clrImgsTensor, colorOutput) #loss is symmetric 
             batchLoss = loss.cpu().detach().numpy() / batch_size
             currentLoss = currentLoss + batchLoss #normalize by batch size for comparison
-            print("Epoch", epoch, " | Batch", batch_ndx, " | Total", len(trainDataloader), " | LR:", np.round(learningRate, 7), " | Batch Loss:", np.round(batchLoss, 5), " | Time:", np.round(time.time() - startOfBatch, 5))
             
             #backpropagation
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             
+            print("Epoch", epoch, " | Batch", batch_ndx, " | Total", len(trainDataloader), " | LR:", np.round(learningRate, 7), " | Batch Loss:", np.round(batchLoss, 5), " | Time:", np.round(time.time() - startOfBatch, 5))
+
             #For visualization of an output
-            cv2.imwrite("output/train" + str(batch_ndx % 50) + "_predicted.png", torch.transpose(colorOutput[0][:].unsqueeze(3), 0, 3).squeeze().cpu().detach().numpy() * 255)
-            cv2.imwrite("output/train" + str(batch_ndx % 50) + "_color.png", torch.transpose(clrImgsTensor[0][:].unsqueeze(3), 0, 3).squeeze().cpu().detach().numpy() * 255)
-            cv2.imwrite("output/train" + str(batch_ndx % 50) + "_bw.png", bwImgsTensor[0][0].cpu().detach().numpy() * 255)
+            cv2.imwrite("output/train" + str(batch_ndx % 50) + "_predicted.png", torch.transpose(colorOutput[0][:].unsqueeze(3), 0, 3).squeeze().cpu().detach().numpy() * 128 + 128)
+            cv2.imwrite("output/train" + str(batch_ndx % 50) + "_color.png", torch.transpose(clrImgsTensor[0][:].unsqueeze(3), 0, 3).squeeze().cpu().detach().numpy() * 128 + 128)
+            cv2.imwrite("output/train" + str(batch_ndx % 50) + "_bw.png", bwImgsTensor[0][0].cpu().detach().numpy() * 128 + 128)
             
             try:
                 torch.save({
@@ -82,10 +82,12 @@ def train():
                         }, "./upscalingModel_inProgress.pt")
             except Exception as e:
                 print(e)
+                
+            startOfBatch = time.time()
 
         time.sleep(1)
         print("----------------------------")
-        print("Epoch", epoch, "Loss:", currentLoss, "Time:", time.time() - start)
+        print("Epoch", epoch, "Loss:", currentLoss)
         print("----------------------------")
             
         lossOverTime.append(currentLoss)
@@ -97,15 +99,18 @@ def train():
         plt.savefig("Loss of neural network.png")
         plt.close("all")
 
-    torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss,
-                'batch_ndx': batch_ndx,
-                'learningRate': learningRate,
-                'batch_size': batch_size,
-                }, "./upscalingModel_inProgress.pt")
+        try:
+            torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'loss': loss,
+                    'batch_ndx': batch_ndx,
+                    'learningRate': learningRate,
+                    'batch_size': batch_size,
+                    }, "./upscalingModel_recentEpoch.pt")
+        except Exception as e:
+            print(e)
 
 def main(args = None):   
     parser = argparse.ArgumentParser(description='Neural Network Colorization Project in Pytorch')
