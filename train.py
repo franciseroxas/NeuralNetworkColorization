@@ -15,7 +15,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-def train():
+def train(modelDict = None):
     if(os.path.exists('output') == False):
         os.mkdir('output')
     
@@ -45,8 +45,15 @@ def train():
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learningRate, betas=(0.9, 0.999), eps=1e-08)
     lossOverTime = []
+    startEpoch = 0
+
+    if(modelDict is not None):
+        model.load_state_dict(modelDict['model_state_dict'])
+        loss = modelDict['loss']
+        startEpoch = modelDict['epoch'] + 1
+        optimizer.load_state_dict(modelDict['optimizer_state_dict'])
     
-    for epoch in range(num_epochs):
+    for epoch in range(startEpoch, num_epochs):
         currentLoss = 0
         startOfBatch = time.time()
         for batch_ndx, data in enumerate(trainDataloader):
@@ -79,6 +86,7 @@ def train():
                         'batch_ndx': batch_ndx,
                         'learningRate': learningRate,
                         'batch_size': batch_size,
+                        'lossList': lossOverTime,
                         }, "./upscalingModel_inProgress.pt")
             except Exception as e:
                 print(e)
@@ -108,6 +116,7 @@ def train():
                     'batch_ndx': batch_ndx,
                     'learningRate': learningRate,
                     'batch_size': batch_size,
+                    'lossList': lossOverTime,
                     }, "./upscalingModel_recentEpoch.pt")
         except Exception as e:
             print(e)
@@ -116,7 +125,8 @@ def main(args = None):
     parser = argparse.ArgumentParser(description='Neural Network Colorization Project in Pytorch')
     args = parser.parse_args()
     
-    train()
+    modelDict = torch.load('upscalingModel_recentEpoch - 7 epochs.pt')
+    train(modelDict = modelDict)
 
 if __name__ == "__main__":
     main()
